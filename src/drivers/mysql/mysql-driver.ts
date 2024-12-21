@@ -68,6 +68,15 @@ export interface MySQLConstraintColumnResult {
   REFERENCED_COLUMN_NAME: string;
 }
 
+export interface MySQLTriggerResult {
+  TRIGGER_NAME: string;
+  EVENT_OBJECT_SCHEMA: string;
+  EVENT_OBJECT_TABLE: string;
+  ACTION_TIMING: string;
+  ACTION_STATEMENT: string;
+  TRIGGER_SCHEMA: string;
+}
+
 function mapColumn(column: MySqlColumn): DatabaseTableColumn {
   const result: DatabaseTableColumn = {
     name: column.COLUMN_NAME,
@@ -177,6 +186,10 @@ export default abstract class MySQLLikeDriver extends CommonSQLImplement {
     const constraintColumnsResult = (await this.query(constraintColumnsSql))
       .rows as unknown as MySQLConstraintColumnResult[];
 
+    const triggerSql = "SELECT * FROM information_schema.triggers";
+    const triggerResult = (await this.query(triggerSql))
+      .rows as unknown as MySQLTriggerResult[];
+
     // Hash table of schema
     const schemaRecord: Record<string, DatabaseSchemaItem[]> = {};
     for (const s of schemaResult) {
@@ -194,7 +207,7 @@ export default abstract class MySQLLikeDriver extends CommonSQLImplement {
         schemaName: t.TABLE_SCHEMA,
         tableSchema: {
           stats: {
-            sizeInByte: t.DATA_LENGTH + t.INDEX_LENGTH
+            sizeInByte: t.DATA_LENGTH + t.INDEX_LENGTH,
           },
           autoIncrement: false,
           pk: [],
@@ -294,6 +307,25 @@ export default abstract class MySQLLikeDriver extends CommonSQLImplement {
       }
     }
 
+    // Add triggers
+    for (const s of schemaResult) {
+      const triggers = triggerResult
+        .filter((f) => f.TRIGGER_SCHEMA === s.SCHEMA_NAME)
+        .map((t) => {
+          return {
+            name: t.TRIGGER_NAME,
+            tableName: t.EVENT_OBJECT_TABLE,
+            schemaName: t.EVENT_OBJECT_SCHEMA,
+            timing: t.ACTION_TIMING,
+            statement: t.ACTION_STATEMENT,
+            type: "trigger",
+          };
+        });
+      schemaRecord[s.SCHEMA_NAME] = schemaRecord[s.SCHEMA_NAME].concat(
+        triggers as DatabaseSchemaItem[]
+      );
+    }
+
     return schemaRecord;
   }
 
@@ -350,13 +382,13 @@ export default abstract class MySQLLikeDriver extends CommonSQLImplement {
           foreignKey:
             constraint.CONSTRAINT_TYPE === "FOREIGN KEY"
               ? {
-                columns: columnList.map((c) => c.COLUMN_NAME),
-                foreignColumns: columnList.map(
-                  (c) => c.REFERENCED_COLUMN_NAME
-                ),
-                foreignSchemaName: columnList[0].REFERENCED_TABLE_SCHEMA,
-                foreignTableName: columnList[0].REFERENCED_TABLE_NAME,
-              }
+                  columns: columnList.map((c) => c.COLUMN_NAME),
+                  foreignColumns: columnList.map(
+                    (c) => c.REFERENCED_COLUMN_NAME
+                  ),
+                  foreignSchemaName: columnList[0].REFERENCED_TABLE_SCHEMA,
+                  foreignTableName: columnList[0].REFERENCED_TABLE_NAME,
+                }
               : undefined,
         };
       }

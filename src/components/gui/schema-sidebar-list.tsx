@@ -166,15 +166,15 @@ export default function SchemaList({ search }: Readonly<SchemaListProps>) {
         },
         isTable && databaseDriver.getFlags().supportCreateUpdateTable
           ? {
-              title: "Edit Table",
-              onClick: () => {
-                openTab({
-                  tableName: item?.name,
-                  type: "schema",
-                  schemaName: item?.schemaName ?? "",
-                });
-              },
-            }
+            title: "Edit Table",
+            onClick: () => {
+              openTab({
+                tableName: item?.name,
+                type: "schema",
+                schemaName: item?.schemaName ?? "",
+              });
+            },
+          }
           : undefined,
         databaseDriver.getFlags().supportCreateUpdateTable
           ? { separator: true }
@@ -184,6 +184,8 @@ export default function SchemaList({ search }: Readonly<SchemaListProps>) {
     },
     [refresh, databaseDriver, currentSchemaName]
   );
+
+  console.log(schema)
 
   const listViewItems = useMemo(() => {
     const r = sortTable(
